@@ -1,0 +1,314 @@
+{
+  "generated_by": "bench/bench.py",
+  "host": "win32",
+  "dependencies": "none (stdlib only)",
+  "robot": {
+    "name": "two_link",
+    "joints": [
+      "j1",
+      "j2"
+    ],
+    "links": [
+      "base",
+      "l1",
+      "l2",
+      "tip"
+    ]
+  },
+  "fk": {
+    "cases": 200,
+    "max_position_error_m": 2.220446049250313e-16,
+    "claim": "FK equals the closed form to float precision"
+  },
+  "jacobian": {
+    "cases": 50,
+    "max_linear_error": 1.4957590721564884e-11,
+    "max_angular_error": 1.631894619436025e-11,
+    "claim": "the Jacobian is the derivative of the FK, not a guess"
+  },
+  "collision": {
+    "parallel_gap": {
+      "expected": 0.5,
+      "got": 0.5
+    },
+    "crossing_gap": {
+      "expected": 0.25,
+      "got": 0.25
+    },
+    "sampled_check": {
+      "cases": 20,
+      "max_closed_form_above_sampling": 0.0,
+      "note": "closed form <= any sampled point pair, by construction"
+    }
+  },
+  "self_collision_calibration": {
+    "grid_points": 1681,
+    "refused_by_self_collision": 82,
+    "fraction": 0.0488,
+    "claim": "this arm is two capsules on one line, so folding it back on itself is a real collision, and the rule is not over-firing elsewhere"
+  },
+  "ik": {
+    "reachable_targets": 200,
+    "single_start": {
+      "ok": 114,
+      "rate": 0.57,
+      "worst_residual_m": 0.7983029371738629,
+      "ms_per_case": 4.27
+    },
+    "multi_start": {
+      "ok": 200,
+      "rate": 1.0,
+      "mean_tries": 2.5,
+      "worst_residual_m": 9.889772676038872e-10,
+      "ms_per_case": 12.4
+    },
+    "unreachable_target": {
+      "ok": false,
+      "residual_m": 0.75,
+      "iterations": 1,
+      "raised": false
+    },
+    "why_single_start_fails": "the 2-link arm has two elbow branches; from a zero start one branch is unreachable without crossing a joint limit, and a step that would cross it is now refused rather than clamped, so the solver stops and reports the residual instead of parking on the limit"
+  },
+  "pd": {
+    "pd_naive": {
+      "settle_s": 4.0,
+      "steady_err": 0.41167,
+      "peak_ratio": 1.0,
+      "overshoot_frac": 0.0,
+      "final_q": [
+        -0.4117,
+        -0.1622
+      ],
+      "peak_tau": 14.969
+    },
+    "pd_gravity_comp": {
+      "settle_s": 1.296,
+      "steady_err": 2e-05,
+      "peak_ratio": 1.0,
+      "overshoot_frac": 0.0,
+      "final_q": [
+        -0.0,
+        -0.0
+      ],
+      "peak_tau": 12.85
+    },
+    "what_the_gap_is": "without the gravity term the arm settles where PD torque balances gravity; the state it settles in is the error, and no gain tuning removes it because the load is not a disturbance, it is the plant"
+  },
+  "gate": {
+    "legal": {
+      "commands": 200,
+      "admitted": 200,
+      "false_refusal_rate": 0.0,
+      "examples_refused": []
+    },
+    "per_rule": {
+      "joint_limit": {
+        "planted": 40,
+        "caught": 40,
+        "caught_by_intended_rule": 40
+      },
+      "step_jump": {
+        "planted": 40,
+        "caught": 40,
+        "caught_by_intended_rule": 40
+      },
+      "velocity": {
+        "planted": 1,
+        "caught": 1,
+        "caught_by_intended_rule": 1,
+        "reasons": [
+          "velocity"
+        ]
+      },
+      "torque": {
+        "planted": 1,
+        "caught": 1,
+        "caught_by_intended_rule": 1,
+        "reasons": [
+          "torque"
+        ]
+      },
+      "obstacle": {
+        "planted": 1,
+        "caught": 1,
+        "caught_by_intended_rule": 1,
+        "reasons": [
+          "obstacle"
+        ]
+      },
+      "self_collision": {
+        "planted": 1,
+        "caught": 1,
+        "caught_by_intended_rule": 1,
+        "reasons": [
+          "self_collision"
+        ]
+      }
+    },
+    "mutation_control": {
+      "joint_limit": {
+        "planted": 40,
+        "caught_with_rule_off": 40
+      },
+      "step_jump": {
+        "planted": 40,
+        "caught_with_rule_off": 0
+      }
+    },
+    "geometry_scene": {
+      "obstacle_at_reach": {
+        "admitted": false,
+        "reasons": [
+          "obstacle"
+        ]
+      },
+      "obstacle_away": {
+        "admitted": true,
+        "reasons": []
+      },
+      "folded_self_collision": {
+        "admitted": false,
+        "reasons": [
+          "self_collision"
+        ]
+      },
+      "straight_clear": {
+        "admitted": true,
+        "reasons": []
+      }
+    }
+  },
+  "closed_loop": {
+    "ik_corrected_control": {
+      "tip_error_before_m": 0.36077,
+      "joint_steady_err_before": 0.41108,
+      "ik_joint_solution": [
+        0.0,
+        0.0
+      ],
+      "ik_residual_m": 0.0,
+      "joint_steady_err_after": 0.0,
+      "settle_after_s": 0.0
+    },
+    "gate_in_the_loop": {
+      "good_controller_no_gate": {
+        "peak_command": 12.85,
+        "peak_tau_reaching_plant": 12.85,
+        "refused_ticks": 0,
+        "steady_err": 9e-05,
+        "final_q": [
+          -0.0001,
+          -0.0001
+        ],
+        "first_refusal": null,
+        "joint_stop_contacts": 0
+      },
+      "good_controller_gated": {
+        "peak_command": 12.85,
+        "peak_tau_reaching_plant": 12.85,
+        "refused_ticks": 0,
+        "steady_err": 9e-05,
+        "final_q": [
+          -0.0001,
+          -0.0001
+        ],
+        "first_refusal": null,
+        "joint_stop_contacts": 0
+      },
+      "rogue_controller_no_gate": {
+        "peak_command": 360.0,
+        "peak_tau_reaching_plant": 360.0,
+        "refused_ticks": 0,
+        "steady_err": 0.43551,
+        "final_q": [
+          0.0691,
+          -0.4355
+        ],
+        "first_refusal": null,
+        "joint_stop_contacts": 61
+      },
+      "rogue_controller_gated": {
+        "peak_command": 600.0,
+        "peak_tau_reaching_plant": 0.0,
+        "refused_ticks": 1500,
+        "steady_err": 0.94773,
+        "final_q": [
+          -0.9477,
+          0.2302
+        ],
+        "first_refusal": [
+          0.0,
+          [
+            "torque"
+          ],
+          {
+            "torque": "|tau[j1]|=120.00 above 14.00"
+          }
+        ],
+        "joint_stop_contacts": 360
+      }
+    },
+    "what_this_shows": "the rogue controller asks for ~1380 N*m on a 30 N*m joint. Ungated, that command reaches the plant outright; the arm slams into its own joint stops and stays there. Gated, every one of those ticks is refused before it can reach the plant, and the arm does not move at all. The good controller loses nothing: 0 refusals and a trajectory identical to ungated."
+  },
+  "g1_at_scale": {
+    "urdf": "demo/g1.urdf (unifolm-wla-toolkit)",
+    "links": 39,
+    "joints": 38,
+    "movable_joints": 29,
+    "load_ms": 3.32,
+    "jacobian_vs_finite_difference_max_err": 4.554745469675936e-12,
+    "jacobian_ms": 1.61,
+    "ik_position_only": {
+      "ok": true,
+      "tries": 1,
+      "residual_m": 2.25e-06,
+      "ms": 25.4,
+      "iterations": 3
+    },
+    "ik_position_and_orientation": {
+      "ok": true,
+      "tries": 1,
+      "residual_m": 2.299e-05,
+      "residual_rad": 1.357e-05,
+      "ms": 33.8
+    },
+    "gate_at_zero_pose_absolute": {
+      "ok": false,
+      "reasons": [
+        "self_collision"
+      ],
+      "ms": 6.2,
+      "pair_stats": {
+        "capsules": 35,
+        "pairs_total": 595,
+        "pairs_exact": 111
+      }
+    },
+    "gate_at_zero_pose_calibrated": {
+      "ok": true,
+      "reasons": [],
+      "ms": 15.2,
+      "pairs_overlapping_at_baseline": 8,
+      "pair_stats": {
+        "capsules": 35,
+        "pairs_total": 595,
+        "pairs_exact": 97
+      }
+    },
+    "gate_after_a_10cm_move": {
+      "ok": true,
+      "reasons": []
+    },
+    "gate_planted_joint_limit": {
+      "joint": "left_shoulder_pitch_joint",
+      "ok": false,
+      "reasons": [
+        "joint_limit",
+        "step_jump"
+      ]
+    },
+    "note": "with absolute clearance the zero pose is refused, and it is right to be: 3 cm capsules on this URDF put the torso stack inside the pelvis radius at q=0. Calibrated against that same pose, the structural overlaps are baselined and the arm is admitted -- and the 10 cm move in the IK section still passes the gate afterwards, so calibration did not simply switch the rule off"
+  },
+  "runtime_s": 5.07
+}

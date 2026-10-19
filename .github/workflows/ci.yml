@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  bench:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.9', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: no third-party imports
+        shell: bash
+        run: |
+          if grep -rnE '^\s*(import|from)\s+(numpy|scipy|torch|mujoco|pybullet)' spine bench tests; then
+            echo "this repo is stdlib-only on purpose"; exit 1
+          fi
+      - name: tests
+        run: python -m unittest discover -s tests -v
+      - name: bench
+        run: python bench/bench.py
+      - name: the claims in the README are the numbers in results.json
+        run: python bench/check_claims.py

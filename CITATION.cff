@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this, cite it."
+title: "robot-spine"
+abstract: "FK, IK, capsule collision and a measurable safety gate for robot control, in pure Python."
+authors:
+  - family-names: "Zhang"
+    given-names: "Yangyi"
+version: 0.1.0
+date-released: "2026-10-17"
+license: Apache-2.0
+repository-code: "https://github.com/ZhangYangyi03/robot-spine"
+keywords:
+  - robotics
+  - inverse-kinematics
+  - safety
+  - verification
