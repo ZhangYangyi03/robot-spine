@@ -5,6 +5,7 @@
 """
 import math
 import os
+import re
 import random
 import sys
 import unittest
@@ -266,3 +267,51 @@ class TestCalibration(unittest.TestCase):
         v = g.check([0.0, 3.0], qdot=[0.0, 0.0], tau=[0.0, 0.0])
         self.assertFalse(v.ok)
         self.assertIn('self_collision', v.reasons)
+
+
+class TestMuJoCoAgreement(unittest.TestCase):
+    """The plant against an engine that did not write it.
+
+    Skipped, loudly, when MuJoCo cannot be imported -- a skipped physics check and a
+    passed one must never look the same, so the skip message names the reason.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from spine import mujoco_backend as mj
+        ok, why = mj.available()
+        if not ok:
+            raise unittest.SkipTest('mujoco not importable here: %s' % why)
+        cls.mj = mj
+        cls.out = mj.run(grid=[[0.0, 0.0], [0.6, 0.9], [-0.5, 0.2], [1.1, -0.7]])
+
+    def test_gravity_agrees_with_the_engine(self):
+        from spine import control
+        plant = control.PlanarArm()
+        for q, row in zip([[0.0, 0.0], [0.6, 0.9], [-0.5, 0.2], [1.1, -0.7]],
+                          self.out['mujoco_bias']):
+            mine = plant.G(q)
+            for k in (0, 1):
+                self.assertLess(abs(mine[k] - row[k]), 1e-9,
+                                'G(q) and qfrc_bias differ at %r axis %d' % (q, k))
+
+    def test_same_pd_reaches_the_same_fixed_point(self):
+        a = self.out['loop']['final_q']
+        self.assertLess(max(abs(x - y) for x, y in zip(a, [-0.41166928, -0.16216466])),
+                        1e-6, 'the PD fixed point moved')
+
+    def test_engine_bias_compensation_holds_the_setpoint(self):
+        q = self.out['loop_with_bias_comp']['final_q']
+        self.assertLess(max(abs(x) for x in q), 1e-4)
+
+    def test_the_model_has_no_joint_limits(self):
+        # the decision in docs/MUJOCO.md: limits belong to the gate, not the engine.
+        # If someone adds a `range` back, this test names why it must not.
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            'demo', 'two_link.xml')
+        with open(path, encoding='utf-8') as fh:
+            xml = fh.read()
+        self.assertNotIn(None, re.findall(r'<joint[^>]*\brange="', xml),
+                         'a MuJoCo joint range clamps at every pose in 3.2.7, so the '
+                         'engine would solve a different problem from the plant; '
+                         'joint limits are enforced by spine/gate.py')

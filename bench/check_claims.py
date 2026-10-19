@@ -20,4 +20,13 @@ assert g['ik_position_only']['ok'] is True
 assert g['gate_at_zero_pose_absolute']['ok'] is False
 assert g['gate_at_zero_pose_calibrated']['ok'] is True
 assert g['gate_after_a_10cm_move']['ok'] is True
+mj = r.get('mujoco', {})
+if 'skipped' in mj:
+    # a skipped physics check must be LOUD, and must not be confused with a pass
+    print('mujoco section SKIPPED:', mj['skipped'], '--', str(mj.get('detail'))[:200])
+else:
+    assert mj['gravity']['max_abs_difference_Nm'] < 1e-9
+    assert mj['same_pd_two_plants']['max_gap_in_the_final_state_rad'] == 0.0
+    assert mj['same_pd_two_plants']['max_gap_along_the_trajectory_rad'] < 0.05
+    assert mj['gravity_comp_through_the_engine']['max_joint_error_rad'] < 1e-4
 print('claims hold')

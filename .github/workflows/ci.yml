@@ -2,6 +2,7 @@ name: ci
 on: [push, pull_request]
 jobs:
   bench:
+    name: stdlib path (${{ matrix.os }}, py${{ matrix.python }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -12,11 +13,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: no third-party imports
+      - name: the verification path has no third-party imports
         shell: bash
+        # mujoco_backend.py and bench_mujoco.py are the deliberate exception: they
+        # exist to be the witness that did not write the plant. Everything else --
+        # the solver, the collision model, the gate, the controller, every bench and
+        # every test that does not need the engine -- must import nothing.
         run: |
-          if grep -rnE '^\s*(import|from)\s+(numpy|scipy|torch|mujoco|pybullet)' spine bench tests; then
-            echo "this repo is stdlib-only on purpose"; exit 1
+          if grep -rnE '^\s*(import|from)\s+(numpy|scipy|torch|mujoco|pybullet)' \
+               spine bench tests \
+               --exclude=mujoco_backend.py --exclude=bench_mujoco.py; then
+            echo "the stdlib path must stay stdlib-only"; exit 1
           fi
       - name: tests
         run: python -m unittest discover -s tests -v
@@ -24,3 +31,35 @@ jobs:
         run: python bench/bench.py
       - name: the claims in the README are the numbers in results.json
         run: python bench/check_claims.py
+
+  physics:
+    name: physics check (mujoco, py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install mujoco==3.2.7
+      - name: the engine loads and agrees with the plant
+        # This job exists because a skipped physics check and a passed physics check
+        # must not look the same. In the stdlib jobs above, MuJoCo is absent and the
+        # section records WHY it was skipped; here it is present and the numbers are
+        # asserted.
+        run: |
+          python - <<'PY'
+          import json, sys
+          sys.path.insert(0, '.')
+          from bench import bench_mujoco
+          r = bench_mujoco.run()
+          assert 'skipped' not in r, r.get('detail')
+          g = r['gravity']['max_abs_difference_Nm']
+          assert g < 1e-9, 'plant and engine disagree about gravity: %r' % g
+          gap = r['same_pd_two_plants']['max_gap_in_the_final_state_rad']
+          assert gap == 0.0, 'the two plants no longer share a fixed point: %r' % gap
+          comp = r['gravity_comp_through_the_engine']['max_joint_error_rad']
+          assert comp < 1e-4, comp
+          print('engine agrees: gravity %.2e N*m, fixed-point gap %r, comp %s' % (g, gap, comp))
+          PY
+      - name: the tests that need the engine actually run, not skip
+        run: python -m unittest tests.test_spine.TestMuJoCoAgreement -v

@@ -30,7 +30,7 @@ from spine import collision as col          # noqa: E402
 from spine import control, ik, scenes       # noqa: E402
 from spine import gate as gatemod           # noqa: E402
 from spine import linalg as la              # noqa: E402
-from bench import bench_g1, bench_gate, bench_ik   # noqa: E402
+from bench import bench_g1, bench_mujoco, bench_gate, bench_ik   # noqa: E402
 
 
 def _r(x, n=4):
@@ -249,6 +249,9 @@ def main():
         'gate': bench_gate.run(),
         'closed_loop': sec_closed_loop(robot),
         'g1_at_scale': bench_g1.run(),
+        # MuJoCo is optional: the section records why it was skipped rather than
+        # pretending the physics engine agreed.
+        'mujoco': bench_mujoco.run(),
     }
     res['runtime_s'] = _r(time.time() - t0, 2)
     out = os.path.join(HERE, 'results.json')

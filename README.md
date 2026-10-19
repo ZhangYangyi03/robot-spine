@@ -1,8 +1,10 @@
 # robot-spine
 
 A robot control kernel in pure Python: forward kinematics, inverse kinematics,
-capsule collision, a safety gate, and a PD loop running on a plant whose equations
-are written out. No numpy, no MuJoCo, no simulator, no GPU, no network.
+capsule collision, a safety gate, and a PD loop on a plant whose equations are
+written out. The stdlib path has no numpy, no simulator, no GPU and no network;
+the physics check next to it runs MuJoCo in a subprocess, because the plant's
+equations deserve a witness that did not write them.
 
 It exists for one reason, and it is the reason `eda-spine` exists:
 
@@ -27,9 +29,9 @@ If a claim and the file disagree, the file is right.
     covagent: measure coverage       bench: what fraction of reachable targets the
       from the raw database          solver reaches, measured not assumed
 
-Those are not metaphors. `ik_solve(gate=...)` will not return a joint vector the
-gate rejects; `control.run(gate=...)` will not pass a torque the gate rejects to
-the plant; `bench_gate.py` re-runs every planted fault with the rule switched off.
+Those are not metaphors: `ik_solve(gate=...)` will not return a joint vector the
+gate rejects, `control.run(gate=...)` will not pass a rejected torque to the plant,
+and `bench_gate.py` re-runs every planted fault with the rule switched off.
 
 ## What is measured
 
@@ -51,22 +53,25 @@ the plant; `bench_gate.py` re-runs every planted fault with the rule switched of
     gate velocity/torque/obstacle/self-collision   1/1 each, right reason each
     rogue controller ungated    asks 360 N*m on a 30 N*m joint        reaches the plant, 61 joint-stop hits
     rogue controller gated      1500 / 1500 ticks refused             0.0 N*m reaches the plant
+    gravity vs MuJoCo           49 poses, max difference              1.8e-15 N*m
+    same PD on both plants      final state gap                       0.0 rad
+    same PD on both plants      worst transient gap                    8.0e-3 rad at 0.23 s
+    PD + engine bias            final joint error                      2.2e-05 rad
 
-Three of those numbers are uncomfortable on purpose. They are explained below
+Three of those numbers are uncomfortable on purpose, and are explained below
 rather than tuned away.
 
 ### IK from one start solves 57% of reachable targets
 
-The 2-link arm has two elbow branches. From the zero pose one of them cannot be
-reached without a joint crossing its limit, so the solver stops and reports the
-residual. Multi-start over a deterministic Halton lattice of the URDF's own limits
-reaches 100% at a mean of 2.5 attempts. Quoting only the second number would hide
-that the first is bad; quoting only the first would hide that the fix is cheap.
+The 2-link arm has two elbow branches. From the zero pose one cannot be reached
+without a joint crossing its limit, so the solver stops with a residual. Multi-start
+over a deterministic Halton lattice of the URDF's own limits reaches 100% at a mean
+of 2.5 attempts. Quoting only the second would hide that the first is bad; quoting
+only the first would hide that the fix is cheap.
 
-The clamp was the bug: the earlier version re-clamped each joint into its limit
-and kept stepping, which parked the arm ON the limit with a 0.8 m residual for a
-target that is perfectly reachable. Refusing the step turns a silent wrong answer
-into an honest early stop.
+The clamp was the bug: the earlier version re-clamped each joint into its limit and
+kept stepping, parking the arm ON the limit with a 0.8 m residual for a reachable
+target. Refusing the step turns a silent wrong answer into an honest early stop.
 
 ### The joint-limit mutation control does not collapse
 
@@ -94,16 +99,13 @@ Both were found by a measurement disagreeing with a claim, which is the whole po
 of having the measurement:
 
 1. `so3_log` returned ZERO for a 1e-7 rad rotation (the `cos -> 1` guard was too
-   loose), so every finite-difference Jacobian check reported a 1.0 rad/s error.
-   The Jacobian was right; the check was reading a lie. Now split three ways
-   (small angle, generic, near-pi) and covered by a test.
-2. The capsule for a link spanned parent-frame to child-frame, which turned every
-   decorative link at a coincident origin (head_link, logo_link, imu_in_pelvis,
-   pelvis_contour_link on the G1) into a phantom fat capsule around the pelvis,
-   and made the self-collision rule fire on the zero pose. A capsule derived from
-   the wrong span is not a conservative approximation, it is a wrong model. Now
-   each capsule spans the link's own frame to the next joint's frame and is
-   tapered, and pairs of capsules belong to *different* links by construction.
+   loose), so every finite-difference Jacobian check reported a 1.0 rad/s error. The
+   Jacobian was right; the check was reading a lie. Now split three ways and tested.
+2. The capsule for a link spanned parent-frame to child-frame, turning every
+   decorative link at a coincident origin (head_link, logo_link, imu_in_pelvis) into
+   a phantom fat capsule around the pelvis and firing self-collision at the zero
+   pose. A capsule from the wrong span is not a conservative approximation, it is a
+   wrong model. Now each spans the link's own frame to the next joint's frame.
 
 ## The gate, and why it is a separate object
 
@@ -118,17 +120,39 @@ handed a command and a state and answers with a reason string naming the rule:
     obstacle        a link inside the clearance of a scene obstacle
 
 Each rule can be switched off individually -- that is what makes the mutation
-control possible -- and each has a calibration mode. Calibration matters for a
-real URDF: with 3 cm capsules on the G1, eight capsule pairs overlap at the zero
-pose because the torso stack sits inside the pelvis radius. That is a property of
-a hand-set capsule model, not of the pose. `Gate(calibrate=q0)` measures every
-pair at a pose the machine is known healthy in and refuses only what got closer
-than that, or what crossed the absolute clearance when it started outside it.
+control possible -- and each has a calibration mode: with 3 cm capsules on the real
+G1, eight pairs overlap at the zero pose because the torso stack sits inside the
+pelvis radius. `Gate(calibrate=q0)` baselines every pair at a pose the machine is
+known healthy in and refuses only what got closer, or what crossed the absolute
+clearance when it started outside it.
 
     absolute clearance at q=0     REFUSED (self_collision), 111 exact pairs tested
     calibrated against q=0        admitted, 8 pairs baselined at the start pose
     10 cm wrist move afterwards   admitted -- calibration did not switch the rule off
     planted joint-limit break     REFUSED by `joint_limit` (and `step_jump`)
+
+## The plant, checked against a physics engine
+
+Everything above is checked against arithmetic I wrote: a closed form, a finite
+difference, and a Lagrangian plant. All three were written by the same person on
+the same day. `bench/bench_mujoco.py` asks something that did not:
+is `demo/two_link.xml` the same arm as `spine/control.py`?
+
+    max |G_mine(q) - qfrc_bias_mujoco(q)|   1.8e-15 N*m    over 49 poses
+    same PD, both plants, final q           -0.41166928, -0.16216466   identical
+    same PD, worst transient gap            8.0e-3 rad, peaking at 0.23 s
+    PD + the engine's own bias              final joint error 2.2e-05 rad
+
+They are the same arm, and the trajectories are not the same curve: the engine runs
+RK4 at 2 ms, the plant runs its own stepper. A shared fixed point is a statement
+about the equations; it is not a statement about the path, so both are printed.
+
+Three traps are in `docs/MUJOCO.md`, each with the measurement that found it. The
+one that matters: a hinge carrying `range="-3 3"` is clamped by MuJoCo 3.2.7 at
+every pose, not only at the limit -- `efc_force = 528 N*m` at `q = 0.6`, holding the
+arm 8x stiffer than its own gains. So the model declares no joint range. Joint
+limits are the gate's job, where they can be audited and switched off one at a time;
+a safety property handed to a solver is a property nobody can inspect.
 
 ## Scale: the same code on 29 DOF
 
@@ -150,21 +174,19 @@ than that, or what crossed the absolute clearance when it started outside it.
     python -m spine                       # the built-in 2-link arm
     python -m spine demo/g1.urdf --link left_wrist_yaw_link --dz 0.10 --radius 0.03
 
-`python -m spine` prints the model, the target, what IK returned *with its
-residual*, and what the gate says about the answer -- and asks the gate even when
-IK failed, because "the solver could not" and "the solution is unsafe" are
-different results and must not be collapsed into one line.
+`python -m spine` prints the model, the target, what IK returned with its residual,
+and the gate's verdict -- and asks the gate even when IK failed, because "the solver
+could not" and "the solution is unsafe" must not collapse into one line.
 
 ## What this is not
 
 Not a physics engine. The plant in `control.py` is a rigid 2-link arm with the
-Lagrangian terms written out; no contact, no friction, no actuator dynamics, no
-integration-error budget. MuJoCo or PyBullet is the right tool for those, and that
-port is the next step, not this repo.
+Lagrangian terms written out; no contact, no friction, no actuator dynamics. MuJoCo
+is reached only through `spine/mujoco_backend.py`, and only to check that plant --
+the gate, the solver and the controller never import it.
 
-Not a controller for a real arm. No trajectory generation, no time
-synchronisation, no fieldbus, no safety-rated stop. `gate.py` is a software check,
-not a safety relay.
+Not a controller for a real arm. No trajectory generation, no time synchronisation,
+no fieldbus, no safety-rated stop: `gate.py` is a software check, not a safety relay.
 
 Not an EDA or CAD kernel. `eda-spine` is where the silicon lives; this is the same
 skeleton pointed at motion.
@@ -188,7 +210,17 @@ skeleton pointed at motion.
     bench/bench_ik.py   IK success rate: single vs multi start, unreachable target
     bench/bench_gate.py admitted/legal, caught/planted, and the mutation control
     bench/bench_g1.py   the same at 29 DOF
+    bench/bench_mujoco.py  the plant against MuJoCo: gravity, both loops, bias comp
+    bench/check_claims.py  the README's numbers as 20 assertions, run by CI
+    spine/mujoco_backend.py  subprocess wrapper; sets the env MuJoCo needs here
     demo/g1.urdf        the Unitree G1 kinematic model, from unifolm-wla-toolkit
+    demo/two_link.xml   the same arm as control.py, for MuJoCo. No joint ranges.
+
+    docs/CLAIMS.md      every number -> its assertion -> what false would look like
+    docs/DESIGN.md      the six decisions, the rejected alternatives, their cost
+    docs/MUJOCO.md      the three traps, each with the measurement that found it
+    docs/REPRODUCE.md   how to run it, and which assertions are written to stay bad
+    docs/BEYOND_THE_RESUME.md  the five things a resume line cannot carry
 
 ## Licence
 

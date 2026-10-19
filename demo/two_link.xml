@@ -1,0 +1,32 @@
+<mujoco model="two_link">
+  <!-- Joint limits are NOT declared here, on purpose. MuJoCo 3.2.7 clamps a
+       hinge that carries a `range` at every pose (measured: efc_type=3, efc_force
+       528 Nm, qacc = -1211 rad/s^2 at q=0.6 while the range was -3..3), so the
+       engine would be solving a different problem from the plant. The limits in
+       this repo are enforced by spine/gate.py, where they are checkable and
+       switchable; the engine is not asked to police them.
+
+       the SAME arm as spine/control.py: l1=0.40, l2=0.35, m1=1.6, m2=0.9.
+       The arm swings in the x-z plane (gravity is along -z), hinge about -y,
+       so a positive joint angle lifts the link the same way the analytic plant's
+       positive angle does. Nothing here is decoration: this file exists so the
+       Lagrangian plant can be checked against a real physics engine. -->
+  <option timestep="0.002" integrator="RK4" gravity="0 0 -9.81"/>
+  <worldbody>
+    <body name="l1" pos="0 0 0.1">
+      <joint name="j1" type="hinge" axis="0 -1 0"/>
+      <inertial pos="0.2 0 0" mass="1.6" diaginertia="0.021333 0.021333 0.0001"/>
+      <geom type="capsule" fromto="0 0 0 0.4 0 0" size="0.03" contype="0" conaffinity="0"/>
+      <body name="l2" pos="0.4 0 0">
+        <joint name="j2" type="hinge" axis="0 -1 0"/>
+        <inertial pos="0.175 0 0" mass="0.9" diaginertia="0.0091875 0.0091875 0.0001"/>
+        <geom type="capsule" fromto="0 0 0 0.35 0 0" size="0.03" contype="0" conaffinity="0"/>
+        <site name="tip" pos="0.35 0 0" size="0.01"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor joint="j1" name="tau1" ctrlrange="-100 100"/>
+    <motor joint="j2" name="tau2" ctrlrange="-100 100"/>
+  </actuator>
+</mujoco>

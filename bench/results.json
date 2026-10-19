@@ -53,14 +53,14 @@
       "ok": 114,
       "rate": 0.57,
       "worst_residual_m": 0.7983029371738629,
-      "ms_per_case": 4.27
+      "ms_per_case": 4.05
     },
     "multi_start": {
       "ok": 200,
       "rate": 1.0,
       "mean_tries": 2.5,
       "worst_residual_m": 9.889772676038872e-10,
-      "ms_per_case": 12.4
+      "ms_per_case": 12.2
     },
     "unreachable_target": {
       "ok": false,
@@ -256,14 +256,14 @@
     "links": 39,
     "joints": 38,
     "movable_joints": 29,
-    "load_ms": 3.32,
+    "load_ms": 3.59,
     "jacobian_vs_finite_difference_max_err": 4.554745469675936e-12,
     "jacobian_ms": 1.61,
     "ik_position_only": {
       "ok": true,
       "tries": 1,
       "residual_m": 2.25e-06,
-      "ms": 25.4,
+      "ms": 17.7,
       "iterations": 3
     },
     "ik_position_and_orientation": {
@@ -271,7 +271,7 @@
       "tries": 1,
       "residual_m": 2.299e-05,
       "residual_rad": 1.357e-05,
-      "ms": 33.8
+      "ms": 24.6
     },
     "gate_at_zero_pose_absolute": {
       "ok": false,
@@ -288,7 +288,7 @@
     "gate_at_zero_pose_calibrated": {
       "ok": true,
       "reasons": [],
-      "ms": 15.2,
+      "ms": 12.6,
       "pairs_overlapping_at_baseline": 8,
       "pair_stats": {
         "capsules": 35,
@@ -310,5 +310,74 @@
     },
     "note": "with absolute clearance the zero pose is refused, and it is right to be: 3 cm capsules on this URDF put the torso stack inside the pelvis radius at q=0. Calibrated against that same pose, the structural overlaps are baselined and the arm is admitted -- and the 10 cm move in the IK section still passes the gate afterwards, so calibration did not simply switch the rule off"
   },
-  "runtime_s": 5.07
+  "mujoco": {
+    "mujoco": "installed and loaded out of process",
+    "model": "demo/two_link.xml (same l1/l2/m1/m2 as spine/control.py)",
+    "gravity": {
+      "grid_points": 49,
+      "max_abs_difference_Nm": 1.7763568394002505e-15,
+      "per_axis_Nm": [
+        1.7763568394002505e-15,
+        8.881784197001252e-16
+      ],
+      "claim": "the files describe the same arm: G(q) agrees with the engine to float precision"
+    },
+    "same_pd_two_plants": {
+      "gains_kp": [
+        18.0,
+        8.0
+      ],
+      "gains_kd": [
+        2.2,
+        1.1
+      ],
+      "q0": [
+        0.6,
+        0.9
+      ],
+      "q_des": [
+        0.0,
+        0.0
+      ],
+      "mujoco": {
+        "final_q": [
+          -0.41166928,
+          -0.16216466
+        ],
+        "final_qd": [
+          -0.00031401,
+          -0.00016837
+        ],
+        "steady_err": 0.41167,
+        "settle_s": 4.0,
+        "overshoot_frac": 0.0
+      },
+      "analytic_plant": {
+        "final_q": [
+          -0.41166928,
+          -0.16216466
+        ],
+        "steady_err": 0.41167,
+        "settle_s": 4.0,
+        "overshoot_frac": 0.0
+      },
+      "max_gap_along_the_trajectory_rad": 0.00803255,
+      "gap_peaked_at_s": 0.23,
+      "max_gap_in_the_final_state_rad": 0.0,
+      "what_this_says": "both droop to the same place to 8 decimals, and diverge by the number above while moving, because the engine runs RK4 at 2 ms and the plant runs its own stepper. A shared fixed point proves the equations match; the transient gap is the price of a different integrator, and it is reported rather than called zero"
+    },
+    "gravity_comp_through_the_engine": {
+      "final_q": [
+        -2.241e-05,
+        -1.475e-05
+      ],
+      "final_qd": [
+        0.00025207,
+        0.0001435
+      ],
+      "max_joint_error_rad": 2.241e-05,
+      "claim": "with the engine bias added to the PD, the arm holds the setpoint to within the number above: gravity was the whole droop"
+    }
+  },
+  "runtime_s": 6.54
 }
