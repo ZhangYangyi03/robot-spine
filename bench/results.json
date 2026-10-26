@@ -53,14 +53,14 @@
       "ok": 114,
       "rate": 0.57,
       "worst_residual_m": 0.7983029371738629,
-      "ms_per_case": 4.05
+      "ms_per_case": 2.85
     },
     "multi_start": {
       "ok": 200,
       "rate": 1.0,
       "mean_tries": 2.5,
       "worst_residual_m": 9.889772676038872e-10,
-      "ms_per_case": 12.2
+      "ms_per_case": 8.52
     },
     "unreachable_target": {
       "ok": false,
@@ -256,14 +256,14 @@
     "links": 39,
     "joints": 38,
     "movable_joints": 29,
-    "load_ms": 3.59,
+    "load_ms": 2.4,
     "jacobian_vs_finite_difference_max_err": 4.554745469675936e-12,
-    "jacobian_ms": 1.61,
+    "jacobian_ms": 1.12,
     "ik_position_only": {
       "ok": true,
       "tries": 1,
       "residual_m": 2.25e-06,
-      "ms": 17.7,
+      "ms": 11.0,
       "iterations": 3
     },
     "ik_position_and_orientation": {
@@ -271,14 +271,14 @@
       "tries": 1,
       "residual_m": 2.299e-05,
       "residual_rad": 1.357e-05,
-      "ms": 24.6
+      "ms": 13.0
     },
     "gate_at_zero_pose_absolute": {
       "ok": false,
       "reasons": [
         "self_collision"
       ],
-      "ms": 6.2,
+      "ms": 4.0,
       "pair_stats": {
         "capsules": 35,
         "pairs_total": 595,
@@ -288,7 +288,7 @@
     "gate_at_zero_pose_calibrated": {
       "ok": true,
       "reasons": [],
-      "ms": 12.6,
+      "ms": 8.4,
       "pairs_overlapping_at_baseline": 8,
       "pair_stats": {
         "capsules": 35,
@@ -379,5 +379,5 @@
       "claim": "with the engine bias added to the PD, the arm holds the setpoint to within the number above: gravity was the whole droop"
     }
   },
-  "runtime_s": 6.54
+  "runtime_s": 6.24
 }

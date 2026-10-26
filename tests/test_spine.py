@@ -315,3 +315,187 @@ class TestMuJoCoAgreement(unittest.TestCase):
                          'a MuJoCo joint range clamps at every pose in 3.2.7, so the '
                          'engine would solve a different problem from the plant; '
                          'joint limits are enforced by spine/gate.py')
+
+
+# ---------------------------------------------------------------------------
+# embodied.py: the voxel plant and the gate in front of it
+#
+# These are the tests for the live-game half of spine-agent. The one that matters
+# most is test_momentum_carries_the_body_past_where_the_intent_stopped: it is the
+# bug the live bench found and the simulator never did. A gate that predicts only
+# the intended velocity refuses one tick too late, because the body keeps
+# GROUND_DRAG of its speed and coasts. Reverting that fix makes this test fail,
+# and on the live bench it makes the body fall 160 blocks.
+# ---------------------------------------------------------------------------
+
+def test_voxel_is_solid_and_passable():
+    from spine import voxel
+    assert voxel.is_solid('stone') and not voxel.is_solid('air')
+    assert not voxel.is_solid('water') and not voxel.is_solid(None)
+    assert voxel.hazard_of('lava') > 0.0 and voxel.hazard_of('stone') == 0.0
+
+
+def test_voxel_frame_rotation_is_a_proper_rotation():
+    """to_spine_frame is a -90 deg turn about x: a linear map, so it is applied to
+    the three basis vectors and the resulting matrix must have det +1 (a rotation,
+    not a reflection) and round-trip exactly."""
+    import numpy as np
+    from spine import voxel
+    r = np.array([voxel.to_spine_frame(v) for v in np.eye(3)]).T
+    assert abs(np.linalg.det(r) - 1.0) < 1e-12, np.linalg.det(r)
+    for v in ((1.0, 2.0, 3.0), (-0.5, 0.0, 7.25)):
+        back = voxel.from_spine_frame(voxel.to_spine_frame(v))
+        assert all(abs(a - b) < 1e-12 for a, b in zip(back, v)), (v, back)
+
+
+def test_flat_world_has_its_top_where_it_says():
+    from spine import voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-2, -61, -2), (2, -61, 2), 'grass_block')
+    assert w.top_at(0, 0) == -61
+    assert w.top_at(9, 9) is None
+
+
+def test_plant_jump_arc_matches_the_closed_form():
+    """The arc peaks at jump_v^2 / (2g) damped by the game's own 0.98 per tick.
+    Measured on live Minecraft 1.21.1 at 1.2522 blocks; the simulator must land
+    on the same number, or it is not a plant worth gating."""
+    import math
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-4, -61, -4), (4, -61, 4), 'stone')
+    env = emb.Env(w)
+    env.reset(0.5, -60.0, 0.5)
+    apex = -60.0
+    for t in range(1, 30):
+        o = env.tick({'jump': t == 1})
+        apex = max(apex, o['pos'][1])
+    assert abs((apex - (-60.0)) - 1.2522) < 0.01, apex - (-60.0)
+
+
+def test_plant_walk_speed_is_the_games():
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-4, -61, -40), (4, -61, 40), 'stone')
+    env = emb.Env(w)
+    env.reset(0.5, -60.0, 0.5)
+    for _ in range(30):
+        o = env.tick({'dv': (0.0, 0.0, emb.WALK)})
+    z0 = o['pos'][2]
+    o = env.tick({'dv': (0.0, 0.0, emb.WALK)})
+    assert abs((o['pos'][2] - z0) - 0.2158) < 0.002
+
+
+def test_gate_refuses_a_walk_into_the_void():
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    # the block at z = 3 covers [3, 4), so a body whose centre is at 3.9 is still on
+    # it and one at 4.0 is not. Placing the body at 3.9 makes the next walk a step
+    # into nothing: a cell-coordinate mistake here reads as a gate that admits
+    # everything, which is exactly the failure mode the live bench caught.
+    w.add_box((-1, -61, -1), (1, -61, 3), 'stone')
+    g = emb.EmbodiedGate(w)
+    st = emb.bodymod.State(0.5, -60.0, 3.9, 0.0)
+    vd = g.check(st, {'dv': (0.0, 0.0, emb.WALK)})
+    assert not vd.ok and 'void_fall' in vd.reasons, vd.reasons
+
+
+def test_gate_admits_a_walk_on_solid_ground():
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-1, -61, -1), (1, -61, 40), 'stone')
+    g = emb.EmbodiedGate(w)
+    st = emb.bodymod.State(0.5, -60.0, 2.5, 0.0)
+    vd = g.check(st, {'dv': (0.0, 0.0, emb.WALK)})
+    assert vd.ok, vd.reasons
+
+
+def test_momentum_carries_the_body_past_where_the_intent_stopped():
+    """The live-bench bug, in the simulator where it can be held still.
+
+    The body stands one tick from the edge, already moving. The intent says "stop",
+    so the intended velocity is zero and a naive gate sees solid ground under its
+    feet and admits. The body then coasts on GROUND_DRAG and leaves the platform.
+    The gate must refuse -- not admit out of respect for the zero it was handed.
+    """
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-1, -61, -1), (1, -61, 3), 'stone')     # last solid block covers z in [3, 4)
+    # standing at z = 3.9 -- still on the block -- with a real forward velocity, as
+    # the server reports it. The intent is "stop"; the body coasts past z = 4.
+    st = emb.bodymod.State(0.5, -60.0, 3.9, 0.0, 0.0, 0.0, 0.11786)
+    g = emb.EmbodiedGate(w)
+    vd = g.check(st, {'dv': (0.0, 0.0, 0.0)})
+    assert not vd.ok, 'gate admitted a coast off the edge'
+    coast = g.coast_offset(st, {'dv': (0.0, 0.0, 0.0)})
+    assert coast[1] > 0.1, coast
+
+
+def test_momentum_term_does_not_refuse_a_body_at_rest():
+    """The same gate must not become a gate that refuses everything: a body
+    standing still mid-platform has no coast term and must be admitted."""
+    from spine import embodied as emb, voxel
+    w = voxel.VoxelWorld()
+    w.add_box((-1, -61, -1), (1, -61, 40), 'stone')
+    st = emb.bodymod.State(0.5, -60.0, 5.5, 0.0)
+    g = emb.EmbodiedGate(w)
+    assert g.check(st, {'dv': (0.0, 0.0, emb.WALK)}).ok
+    assert g.check(st, {'dv': (0.0, 0.0, 0.0)}).ok
+
+
+def test_live_link_frames_one_json_object_per_line():
+    """LineLink is the seam to the running game; a framing bug there reads as an
+    empty world, which reads as a gate that refuses nothing."""
+    import json
+    import socket
+    import threading
+    from spine import live
+    a, b = socket.socketpair()
+    link = live.LineLink(a)
+    link.send({'act': {'keys': {'forward': True}}})
+    link.send({'q': {'id': 1, 'x': 0, 'z': 0, 'y0': 10, 'y1': 0}})
+    got = [b.makefile('rb').readline().decode(), b.makefile('rb')]
+    assert json.loads(got[0])['act']['keys']['forward'] is True
+    b.makefile  # keep the file object alive
+    # and the buffer survives a message arriving in two pieces
+    b.sendall(b'{"a":')
+    b.sendall(b'1}\n')
+    line = link.readline(timeout=2.0)
+    assert json.loads(line) == {'a': 1}
+    a.close()
+    b.close()
+
+
+def test_remote_world_asks_the_body_and_caches():
+    """RemoteWorld must answer the gate's .get() out of the game, and must ask
+    once per column rather than once per cell."""
+    import json
+    import socket
+    import threading
+    from spine import live
+
+    def body_side(sock):
+        f = sock.makefile('rw', encoding='utf-8')
+        answers = 0
+        for line in f:
+            msg = json.loads(line)
+            q = msg['q']
+            f.write('C' + json.dumps({'id': q['id'], 'x': q['x'], 'z': q['z'],
+                                      'cells': [[5, 'stone'], [-61, 'grass_block']]}) + '\n')
+            f.flush()
+            answers += 1
+            if answers >= 8:
+                break
+
+    a, b = socket.socketpair()
+    th = threading.Thread(target=body_side, args=(b,), daemon=True)
+    th.start()
+    rw = live.RemoteWorld(live.LineLink(a), y_top=200, y_bottom=-64)
+    assert rw.name_at((0, 5, 0)) == 'stone'
+    assert rw.name_at((0, -61, 0)) == 'grass_block'
+    assert rw.name_at((0, 100, 0)) is None
+    assert rw.queries == 1, rw.queries        # one column, three cells
+    assert rw.name_at((1, 5, 1)) == 'stone'
+    assert rw.queries == 2
+    a.close()
+    b.close()

@@ -1,0 +1,78 @@
+{
+ "host": "minecraft 1.21.1 server on 127.0.0.1:25565",
+ "ticks": 240,
+ "goal_z": -60.0,
+ "platform": [
+  0.0,
+  101.0,
+  0.0
+ ],
+ "arms": [
+  {
+   "ticks": 219,
+   "admitted": 138,
+   "refused": 80,
+   "reasons": {
+    "drop_height": 80
+   },
+   "first_refusal_tick": 143,
+   "start": [
+    0.5,
+    101,
+    0.5
+   ],
+   "end": [
+    0.5,
+    101,
+    -30.14824
+   ],
+   "min_health": 20.0,
+   "columns_asked": 111,
+   "final_health": 20,
+   "arm": "arm_gated",
+   "gated": true,
+   "real_min_health": 20,
+   "real_final": [
+    0.5,
+    101,
+    -30.14824
+   ],
+   "fell": false,
+   "death_log": [],
+   "goal_z": -60.0
+  },
+  {
+   "ticks": 240,
+   "admitted": 240,
+   "refused": 0,
+   "reasons": {},
+   "first_refusal_tick": null,
+   "start": [
+    0.5,
+    101,
+    0.5
+   ],
+   "end": [
+    7.5,
+    -60,
+    2.51679
+   ],
+   "min_health": 20.0,
+   "columns_asked": 0,
+   "final_health": 20,
+   "arm": "arm_ungated",
+   "gated": false,
+   "real_min_health": 20,
+   "real_final": [
+    7.5,
+    -60,
+    2.51679
+   ],
+   "fell": true,
+   "death_log": [
+    "DEATH at (0.4999999999968975, -60, -47.366369782489805) health 0"
+   ],
+   "goal_z": -60.0
+  }
+ ]
+}

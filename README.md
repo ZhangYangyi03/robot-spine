@@ -222,6 +222,83 @@ skeleton pointed at motion.
     docs/REPRODUCE.md   how to run it, and which assertions are written to stay bad
     docs/BEYOND_THE_RESUME.md  the five things a resume line cannot carry
 
+## The embodied half: the same gate, in front of a real game
+
+`spine/embodied.py` points the gate at a body in a running Minecraft server.
+`spine/voxel.py` is the world it reads; `spine/live.py` is the wire to the game.
+The reason this is in the same repo as the IK and the MuJoCo check is the same
+reason those are: a gate is worth what its world model is worth, and a world model
+this repo also wrote is worth almost nothing.
+
+So the live bench removes the author from the loop:
+
+    the world the gate reads        the server's chunks, over the body's socket
+    the physics the gate meets      the server's own 20 Hz integrator
+    the verdict the gate is judged by   the server's health, which the gate never sees
+
+`python bench/live/bench_live.py` starts nothing (the server must already be up)
+and runs two arms on a floating platform 160 blocks up, so "off the edge" is
+lethal instead of a two-block step onto grass:
+
+    arm           intents   refused   reason         final position        fell
+    gated           138        80     drop_height    y=101, z=-30.15       no
+    ungated         240         0     --             y=-60,  z=2.5         yes
+
+The control arm is the point. Without it, "the body survived" only proves the
+platform was big enough. With it, survival is attributable to the gate: identical
+intent, gate switched to admit everything, body falls 160 blocks and dies.
+
+### What the live bench found that the simulator never did
+
+The gate predicted the *intended* velocity. In the simulator that is exactly what
+the body does, because the plant was written to obey the intent. In the game the
+body has momentum: it keeps `GROUND_DRAG` (0.6) of its horizontal speed per tick
+with no input, `GROUND_FRICTION` (0.546) with input, `AIR_DRAG` (0.91) in the air.
+So the first live run refused at z = -30.23 and the body coasted to z = -30.34 and
+left the platform anyway: the refusal was correct about the next tick and one tick
+late about the body.
+
+The fix is `coast_offset()`: the gate now also scans the column momentum alone will
+carry the body to, and refuses on that. The regression test is
+`test_momentum_carries_the_body_past_where_the_intent_stopped`; reverting the fix
+makes it fail, and makes the live body fall. That is the whole argument for doing
+the bench in a real game rather than a second simulator.
+
+    simulator, before the fix     gated arm: 44 refusals, then fell
+    simulator, after the fix      gated arm: 80 refusals, stayed on the platform
+
+The plant itself was checked against the game before any of this, tick by tick:
+
+    walk, steady state         game 0.2159 blocks/tick    plant 0.2158
+    jump arc, apex height      game 1.2522 blocks         plant 1.2522
+    jump arc, per-tick vy      game == plant              max difference 1e-5
+
+and `test_plant_jump_arc_matches_the_closed_form` holds the arc to 1 cm.
+
+### Running it
+
+    java -Xmx900M -jar mc/server.jar nogui        # 1.21.1, offline, rcon on 25575
+    cd mc/bot && npm install mineflayer@4
+    python bench/live/bench_live.py --ticks 240  # both arms
+
+`mc/server.properties`, `mc/eula.txt` and the flat world are in `mc/`. The server
+is *not* checked in: `mc/server.jar` is 52 MB and re-downloadable from Mojang.
+
+## Layout, the embodied half
+
+    spine/voxel.py        blocks, what is solid, what hurts, capsule-to-block
+                          clearance, and the one frame rotation to the URDF
+    spine/embodied.py     the voxel plant (gravity, collision, fall damage, hazards)
+                          and EmbodiedGate: five rules, each naming itself
+    spine/live.py         RCON, framed JSON over a socket, RemoteWorld -- the gate's
+                          world answered by the running server, cached per column
+    bench/live/bench_live.py      the two arms above, on a real server
+    bench/live/results_live.json  what it printed
+    mc/bot/spine-body.js  the body: presses keys, reports state, answers column
+                          queries out of the chunk cache. No policy, no physics
+    mc/bot/live_gate.py   the loop: state -> intent -> gate -> keys
+
+
 ## Licence
 
 Apache-2.0. `spine/urdf.py` adapts `urdf_kin.py` from

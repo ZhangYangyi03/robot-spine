@@ -99,11 +99,30 @@ class Urdf:
 
     # ---- kinematics -----------------------------------------------------
     def fk_all(self, q):
+        """Every link frame. Document order is NOT assumed to be topological.
+
+        The first version walked self.joints once and skipped any joint whose
+        parent frame was not built yet, which silently drops links when a URDF
+        lists a child joint before its parent -- and a missing link surfaces later
+        as a KeyError somewhere else, or worse as a capsule built from a frame that
+        does not exist. Now the pass repeats until it stops making progress, and a
+        joint that never resolves is a hard error naming itself.
+        """
         T = {self.root: la.eye(4)}
-        for j in self.joints:
-            if j.parent in T:
-                T[j.child] = la.mat_mul(la.mat_mul(T[j.parent], j.origin),
-                                        j.motion(float((q or {}).get(j.name, 0.0))))
+        pending = list(self.joints)
+        while pending:
+            deferred, progress = [], False
+            for j in pending:
+                if j.parent in T:
+                    T[j.child] = la.mat_mul(la.mat_mul(T[j.parent], j.origin),
+                                            j.motion(float((q or {}).get(j.name, 0.0))))
+                    progress = True
+                else:
+                    deferred.append(j)
+            if not progress:
+                raise ValueError('kinematic tree is not rooted at %r: %s unreachable'
+                                 % (self.root, [j.name for j in deferred]))
+            pending = deferred
         return T
 
     def fk(self, q, link=None):

@@ -3,3 +3,24 @@ __pycache__/
 _tmp/
 .vendor/
 bench/results.json.bak
+
+# the live bench: the server jar, the extracted libraries and the world are
+# re-downloadable and 100+ MB; the scripts that drive them are not.
+mc/server.jar
+mc/server.jar.part
+mc/libraries/
+mc/versions/
+mc/flatworld/
+mc/world/
+mc/logs/
+mc/*.log
+mc/hs_err_*
+mc/replay_*
+mc/usercache.json
+mc/server.properties.bak
+mc/bot/node_modules/
+mc/bot/package-lock.json
+mc/bot/*.jsonl
+mc/bot/*.log
+mc/bot/*.json
+mc/bot/__pycache__/
