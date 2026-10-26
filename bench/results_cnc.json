@@ -1,0 +1,198 @@
+{
+ "legal": [
+  {
+   "family": "face",
+   "moves": 42,
+   "cut": 2291.5,
+   "ok": true,
+   "reasons": [],
+   "travel": 950.3061122670878
+  },
+  {
+   "family": "pocket",
+   "moves": 16,
+   "cut": 2422.0,
+   "ok": true,
+   "reasons": [],
+   "travel": 332.15934796019326
+  },
+  {
+   "family": "drill",
+   "moves": 7,
+   "cut": 336.0,
+   "ok": true,
+   "reasons": [],
+   "travel": 167.08203932499367
+  },
+  {
+   "family": "step",
+   "moves": 20,
+   "cut": 2886.75,
+   "ok": true,
+   "reasons": [],
+   "travel": 521.1315519083663
+  }
+ ],
+ "faults": [
+  {
+   "fault": "table",
+   "want": "table_crash",
+   "got": [
+    "table_crash"
+   ],
+   "line": 3,
+   "caught": true
+  },
+  {
+   "fault": "clamp_tip",
+   "want": "clamp_crash",
+   "got": [
+    "clamp_crash"
+   ],
+   "line": 4,
+   "caught": true
+  },
+  {
+   "fault": "clamp_holder",
+   "want": "clamp_crash",
+   "got": [
+    "clamp_crash"
+   ],
+   "line": 4,
+   "caught": true
+  },
+  {
+   "fault": "holder_in_stock",
+   "want": "holder_crash",
+   "got": [
+    "holder_crash",
+    "table_crash"
+   ],
+   "line": 4,
+   "caught": true
+  },
+  {
+   "fault": "rapid_through",
+   "want": "rapid_into_stock",
+   "got": [
+    "rapid_into_stock"
+   ],
+   "line": 5,
+   "caught": true
+  },
+  {
+   "fault": "travel",
+   "want": "travel_limit",
+   "got": [
+    "travel_limit"
+   ],
+   "line": 3,
+   "caught": true
+  },
+  {
+   "fault": "arc_unsupported",
+   "want": "unsupported",
+   "got": [
+    "unsupported"
+   ],
+   "line": null,
+   "caught": true
+  }
+ ],
+ "faults_caught": 7,
+ "faults_total": 7,
+ "repeatability": {
+  "cells_differing": 0,
+  "cells_total": 9600
+ },
+ "student_policies": [
+  {
+   "policy": "careful",
+   "admitted": true,
+   "line": null,
+   "reasons": []
+  },
+  {
+   "policy": "greedy",
+   "admitted": false,
+   "line": 6,
+   "reasons": [
+    "rapid_into_stock"
+   ]
+  },
+  {
+   "policy": "shortsighted",
+   "admitted": false,
+   "line": 5,
+   "reasons": [
+    "holder_crash",
+    "table_crash"
+   ]
+  }
+ ],
+ "repair_loop": {
+  "what": "the refusal is structured (rule, line, numbers), so it can be turned into an instruction and applied with no model in the way. Two claims: every refusal is actionable, and the loop terminates because the gate says so.",
+  "actionable": [
+   {
+    "policy": "careful",
+    "refused": false,
+    "actionable": true,
+    "instructions": []
+   },
+   {
+    "policy": "greedy",
+    "refused": true,
+    "actionable": true,
+    "instructions": [
+     {
+      "rule": "rapid_into_stock",
+      "line": 6,
+      "detail": "line 6: rapid passes through material at (26.51,-16.92,-2.00) where the stock top is 0.00",
+      "fix": "Every lateral rapid must be taken at or above the safe Z. Insert a retract to safe Z before the offending lateral move, and a plunge back down after."
+     }
+    ]
+   },
+   {
+    "policy": "shortsighted",
+    "refused": true,
+    "actionable": true,
+    "instructions": [
+     {
+      "rule": "holder_crash",
+      "line": 5,
+      "detail": "line 5: holder bottom Z=-1.50 is inside stock (top 0.00) -- stickout 20.0 mm with 21.5 mm of stock above the tip",
+      "fix": "The flutes ran out: the holder entered the stock. Either reduce the depth or use a tool with more stickout -- this is the number a prompt rarely has."
+     },
+     {
+      "rule": "table_crash",
+      "line": 5,
+      "detail": "line 5: Z -21.500 is below the table face at -10.000",
+      "fix": "The tool tip went below the table face. Raise the depth by at least the overshoot, or reduce the requested depth."
+     }
+    ]
+   }
+  ],
+  "loops": [
+   {
+    "policy": "careful",
+    "ok": true,
+    "rounds": 0,
+    "why": "admitted"
+   },
+   {
+    "policy": "greedy",
+    "ok": true,
+    "rounds": 1,
+    "why": "admitted"
+   },
+   {
+    "policy": "shortsighted",
+    "ok": false,
+    "rounds": 0,
+    "why": "unrepairable by this rule set: holder_crash,table_crash"
+   }
+  ],
+  "cut_after_repair_mm3": 704.0,
+  "honest": "shortsighted is NOT repaired: its error is geometric (a cut deeper than the tool reaches) and reordering its moves cannot fix it, so the loop stops and says so instead of reporting a success it does not have."
+ }
+}
