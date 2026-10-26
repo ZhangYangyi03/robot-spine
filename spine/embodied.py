@@ -163,6 +163,30 @@ class Env:
                 trial = list(st.pos())
                 trial[axis] += d / n
                 if self.solid_at(trial):
+                    # Step UP TO the contact, don't abandon the whole step.
+                    #
+                    # This is what the game does and what this plant did not: the
+                    # body box is 0.6 wide, so in a one-cell corridor its centre has
+                    # only 0.4 of usable range, and a step of 0.216 from z=-2.59 to
+                    # -2.70 leaves the corridor even though the body was standing
+                    # comfortably inside it. Refusing the step parked the body at a
+                    # corridor mouth forever (measured: 7 of 36 routes died there,
+                    # every one of them with a fixed position and a nonzero intent).
+                    # A bisection onto the contact point costs five probes and makes
+                    # the plant's "walls are sticky" behaviour match the engine's.
+                    lo, hi = 0.0, d / n
+                    for _ in range(5):
+                        mid = 0.5 * (lo + hi)
+                        probe = list(st.pos())
+                        probe[axis] += mid
+                        if self.solid_at(probe):
+                            hi = mid
+                        else:
+                            lo = mid
+                    if lo > 1e-9:
+                        moved = list(st.pos())
+                        moved[axis] += lo
+                        st.x, st.z = moved[0], moved[2]
                     break
                 st.x, st.z = trial[0], trial[2]
 
@@ -309,21 +333,30 @@ class EmbodiedGate:
                 return got
         return {}
 
-    def coast_offset(self, st, act, ticks=1):
-        """How far momentum alone carries the body in `ticks` ticks, if no input.
+    def coast_offset(self, st, act, ticks=None, v_min=1e-3):
+        """How far momentum alone carries the body before it actually stops.
 
-        The game integrates: move by velocity, then damp it. One tick of coast is
-        therefore the current velocity, and that is the term the gate was missing.
+        The game integrates: move by velocity, then damp it. So the stopping
+        distance is the whole geometric series, v * keep / (1 - keep), not one
+        tick of it. Measured at walk speed on flat ground that is 0.32 blocks with
+        no input and 0.26 with input -- and a gate that looks one tick ahead
+        (0.22) is short by a tenth of a block, which is the difference between
+        refusing at the edge and refusing already over it.
+
+        `ticks` is capped only so a body in free fall cannot integrate forever.
         """
         keep = AIR_DRAG if not st.on_ground else (GROUND_DRAG if not act.get('dv')
                                                   else GROUND_FRICTION)
+        cap = 400 if ticks is None else max(1, int(ticks))
         dx = dz = 0.0
         vx, vz = st.vx, st.vz
-        for _ in range(max(1, int(ticks))):
+        for _ in range(cap):
             dx += vx
             dz += vz
             vx *= keep
             vz *= keep
+            if abs(vx) < v_min and abs(vz) < v_min:
+                break
         return dx, dz
 
     def _column_verdict(self, st, dx, dz):
