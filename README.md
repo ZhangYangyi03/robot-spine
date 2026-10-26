@@ -178,6 +178,74 @@ a safety property handed to a solver is a property nobody can inspect.
 and the gate's verdict -- and asks the gate even when IK failed, because "the solver
 could not" and "the solution is unsafe" must not collapse into one line.
 
+## The same gate, pointed at a milling machine
+
+`cnc/` is the second plant under this gate, and it exists to test whether the pattern
+generalises or was only ever about robot arms. The proposer is a set of named student
+policies that are allowed to be wrong -- that is what a language model asked for
+G-code is. The check is arithmetic over the parsed program and the machine's geometry.
+
+    python -m bench.bench_cnc        # writes bench/results_cnc.json
+
+    legal programs from a generated family      4 / 4 admitted
+    planted faults, caught BY THE INTENDED RULE 7 / 7
+    repeatability, same program twice           0 of 9600 cells differ
+
+    student policy     verdict
+    careful            admitted                       the control
+    greedy             REFUSED line 6  rapid_into_stock   fixable by reordering
+    shortsighted       REFUSED line 5  holder_crash        not fixable by reordering
+
+Six rules, each naming itself in the verdict: `travel_limit`, `table_crash`,
+`clamp_crash`, `holder_crash`, `rapid_into_stock`, `unsupported`. The two worth
+explaining:
+
+    holder_crash
+        the tool tip is inside the stock AND the holder's bottom is too. This is the
+        stickout running out -- the number a request for G-code never contains, and
+        the most common way a tool snaps. The gate checks the holder as well as the
+        tip for exactly this reason.
+
+    rapid_into_stock
+        only checked where the rapid moves LATERALLY. Every real program ends by
+        lifting out of the part with `G0 Z20`, and a naive path test calls that
+        "through material" and refuses the program. That was measured, not guessed:
+        a legal facing program was refused at its own final retract line until the
+        vertical case was separated out.
+
+### A bug this half found in itself
+
+The gate said no and its own plant cut anyway. A refused program was reporting
+1408 mm3 of material removed, because the simulation advanced up to the first bad
+line and then stopped -- so a program the gate had rejected had done most of the
+work. Worse, the repair loop compared cut volumes and reported the repaired program
+as having removed 704 mm3 when it had removed none. A refused program now reports
+zero and exposes the partial stock as `verdict.partial`, which cannot be mistaken
+for what the program would cut.
+
+### The repair loop
+
+The verdict is structured -- rule, line, and the numbers that broke -- so a refusal
+becomes an instruction without a model in the way, and the loop stops because the
+gate says so rather than because a retry budget ran out.
+
+    greedy    refused line 6 -> retract to safe Z, re-check -> admitted, 1 round
+    shortsighted   refused -> "unrepairable by this rule set", 0 rounds, and stops
+
+The second line matters more than the first. `shortsighted` asked for a cut deeper
+than the tool can reach; no reordering of its moves fixes that, and a loop that
+"fixed" it by retrying would be reporting a success it did not have.
+
+### What this half does not check
+
+Cutting force, deflection, chatter, thermal growth, and anything 5-axis. There is no
+force model in `cnc/`, so "this feed will break the tool" is not verifiable here and
+a number for it would be invention. The removal model is a heightmap, which is exact
+for a vertical tool axis and wrong for a tilted one; the file says so rather than
+being quietly wrong later. Arcs are refused rather than sampled, because three points
+on an arc let a gouge through between them and a gate that is wrong silently is worse
+than one that stops.
+
 ## What this is not
 
 Not a physics engine. The plant in `control.py` is a rigid 2-link arm with the
@@ -192,6 +260,13 @@ Not an EDA or CAD kernel. `eda-spine` is where the silicon lives; this is the sa
 skeleton pointed at motion.
 
 ## Layout
+
+    cnc/gcode.py        a strict G-code parser, and the constructs it refuses
+    cnc/machine.py      stock as a heightmap, tool + holder + stickout, clamps
+    cnc/gate_cnc.py     the six milling rules, each naming itself
+    cnc/student.py      three proposers, one of which must pass
+    cnc/repair.py       refusal -> instruction, and when to stop trying
+    cnc/verify.py       the numbers above
 
     spine/linalg.py     4x4 rigid transforms, Rodrigues, so3 log, rotation-6D with
                         Gram-Schmidt, Cholesky, damped least squares
