@@ -24,3 +24,6 @@ mc/bot/*.jsonl
 mc/bot/*.log
 mc/bot/*.json
 mc/bot/__pycache__/
+
+# runtime scratch
+bench/run_bench.log
