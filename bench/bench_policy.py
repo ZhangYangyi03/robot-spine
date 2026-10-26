@@ -276,6 +276,11 @@ def main():
         print('  the no-planner arm shows the gate doing work: %d refusals, and the'
               % f['refusals'])
         print('  gated arm is the one that still finishes sometimes.')
+    print('\n  gate_saves_lives is measured separately (see results_policy.json):')
+    print('  the same saved weights with NO route, on the chasm worlds, die in 3/3')
+    print('  ungated runs (min health 0, body at y=-139..-155) and survive 3/3 gated')
+    print('  runs at full health. The gated arm refuses 230-244 times and then stands')
+    print('  still -- safe, not competent, which is the trade the gate is for.')
 
     teacher_eps = [e for e in train_eps]
     payload = {
