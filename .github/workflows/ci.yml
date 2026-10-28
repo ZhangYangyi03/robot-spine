@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ['3.9', '3.12']
+        python: ['3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,18 +15,29 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: the verification path has no third-party imports
         shell: bash
-        # mujoco_backend.py and bench_mujoco.py are the deliberate exception: they
-        # exist to be the witness that did not write the plant. Everything else --
-        # the solver, the collision model, the gate, the controller, every bench and
-        # every test that does not need the engine -- must import nothing.
+        # Three deliberate exceptions, each for its own reason:
+        #   mujoco_backend.py / bench_mujoco.py -- the witness that did not write
+        #     the plant; its whole point is to be a foreign implementation.
+        #   policy.py / bench_policy.py -- the learned layer, torch-only by
+        #     design; the 121k-param network is a .pt, not something this repo
+        #     can express in the standard library.
+        # Everything else -- the solver, the collision model, the gate, the
+        # controller, every other bench -- must import nothing. tests/ is not
+        # scanned: a test is allowed to bring numpy in to check the library.
         run: |
           if grep -rnE '^\s*(import|from)\s+(numpy|scipy|torch|mujoco|pybullet)' \
-               spine bench tests \
-               --exclude=mujoco_backend.py --exclude=bench_mujoco.py; then
+               spine bench \
+               --exclude=mujoco_backend.py --exclude=bench_mujoco.py \
+               --exclude=policy.py --exclude=bench_policy.py; then
             echo "the stdlib path must stay stdlib-only"; exit 1
           fi
       - name: tests
-        run: python -m unittest discover -s tests -v
+        # numpy is a test-time dependency only: one test cross-checks the
+        # voxel rotation with numpy's determinant, which is a check on the
+        # library, not a dependency of it.
+        run: |
+          python -m pip install --upgrade pip numpy
+          python -m unittest discover -s tests -v
       - name: bench
         run: python bench/bench.py
       - name: the claims in the README are the numbers in results.json
